@@ -40,7 +40,6 @@
     <p id="status"></p>
   </main>
   <script>
-    // Ganti SPREADSHEET_ID dengan ID sheet Anda, dan sheet name URL encoded
     const ENDPOINT = "https://opensheet.elk.sh/152oNQyrJEeg-xW3okB2LKbGIUapxDakDMCbDjqpDl3U/Peralatan%20dan%20Mesin";
 
     const columns = [
@@ -70,7 +69,7 @@
         if(!res.ok) throw new Error(res.statusText);
         data = await res.json();
         renderTable(data);
-        status.textContent = `${data.length} baris dimuat.`;
+        status.textContent = `${data.length} baris dimuat. Terakhir diperbarui: ${new Date().toLocaleTimeString()}`;
       }catch(e){
         status.textContent = 'Gagal memuat data: ' + e.message;
       }
@@ -98,6 +97,8 @@
     search.oninput = filterData;
 
     load();
+    // Update otomatis setiap 10 detik
+    setInterval(load, 10000);
   </script>
 </body>
 </html>
