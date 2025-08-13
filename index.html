@@ -1,96 +1,158 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Peralatan dan Mesin — Data dari Google Sheets</title>
-  <style>
-    :root{
-      --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff; --accent:#6ea8fe; --border:#223063;
-    }
-    body{margin:0;font-family:ui-sans-serif,system-ui; background:var(--bg); color:var(--text)}
-    header{position:sticky;top:0;background:#0b1020cc;padding:1rem;border-bottom:1px solid var(--border)}
-    h1{margin:0;font-size:1.5rem}
-    input,button{padding:.5rem;border-radius:.5rem;border:1px solid var(--border)}
-    input{flex:1;min-width:200px;background:#0f1730;color:var(--text)}
-    button{background:var(--accent);color:#000;cursor:pointer}
-    main{padding:1rem}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:.5rem;border-bottom:1px solid var(--border);vertical-align:top}
-    th{background:#0f1730;color:var(--muted);cursor:pointer;white-space:nowrap}
-    tbody tr:hover{background:#0f1730}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Peralatan dan Mesin — Data dari Google Sheets</title>
+<style>
+  :root{
+    --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff; --accent:#6ea8fe; --border:#223063;
+  }
+  body{margin:0;font-family:ui-sans-serif,system-ui; background:var(--bg); color:var(--text)}
+  header{position:sticky;top:0;background:#0b1020cc;padding:1rem;border-bottom:1px solid var(--border);z-index:10}
+  h1{margin:0;font-size:1.5rem}
+  input,button{padding:.5rem;border-radius:.5rem;border:1px solid var(--border)}
+  input{flex:1;min-width:200px;background:#0f1730;color:var(--text)}
+  button{background:var(--accent);color:#000;cursor:pointer}
+  main{padding:1rem}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:.5rem;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:#0f1730;color:var(--muted);cursor:pointer;white-space:nowrap;user-select:none}
+  tbody tr:hover{background:#0f1730}
+  th.sort-asc::after { content:" ▲"; }
+  th.sort-desc::after { content:" ▼"; }
+  .pagination{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap}
+  .pagination button{padding:.3rem .6rem;background:#0f1730;color:var(--text);border:1px solid var(--border);cursor:pointer}
+  .pagination button.active{background:var(--accent);color:#000}
+</style>
 </head>
 <body>
-  <header>
-    <h1>Peralatan dan Mesin</h1>
-    <div style="display:flex;gap:.5rem;margin-top:.5rem">
-      <input id="search" type="search" placeholder="Cari…" />
-      <button id="download">Unduh CSV</button>
-      <button id="reload">Muat ulang</button>
-    </div>
-  </header>
-  <main>
-    <div style="overflow:auto">
-      <table>
-        <thead></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <p id="status"></p>
-  </main>
-  <script>
-    const ENDPOINT = "https://opensheet.elk.sh/https://docs.google.com/spreadsheets/d/152oNQyrJEeg-xW3okB2LKbGIUapxDakDMCbDjqpDl3U/Peralatan%20dan%20Mesin";
-    let columns = [];
-    let data = [];
+<header>
+  <h1>Peralatan dan Mesin</h1>
+  <div style="display:flex;gap:.5rem;margin-top:.5rem">
+    <input id="search" type="search" placeholder="Cari…" />
+    <button id="download">Unduh CSV</button>
+    <button id="reload">Muat ulang</button>
+  </div>
+</header>
+<main>
+  <div style="overflow:auto">
+    <table>
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="pagination" id="pagination"></div>
+  <p id="status"></p>
+</main>
+<script>
+const ENDPOINT = "https://opensheet.elk.sh/https://docs.google.com/spreadsheets/d/152oNQyrJEeg-xW3okB2LKbGIUapxDakDMCbDjqpDl3U/Peralatan%20dan%20Mesin";
+let columns = [];
+let data = [];
+let filteredData = [];
+let sortCol = null;
+let sortDir = 1;
+let currentPage = 1;
+const pageSize = 50;
 
-    const thead = document.querySelector('thead');
-    const tbody = document.querySelector('tbody');
-    const status = document.getElementById('status');
-    const search = document.getElementById('search');
+const thead = document.querySelector('thead');
+const tbody = document.querySelector('tbody');
+const status = document.getElementById('status');
+const search = document.getElementById('search');
+const pagination = document.getElementById('pagination');
 
-    function renderTable(rows){
-      thead.innerHTML = '<tr>' + columns.map(c=>`<th>${c.replace(/\n/g,'<br>')}</th>`).join('') + '</tr>';
-      tbody.innerHTML = rows.map(r=>'<tr>' + columns.map(c=>`<td>${r[c]||''}</td>`).join('') + '</tr>').join('');
-    }
+function renderTable(rows){
+  // Render header
+  thead.innerHTML = '<tr>' + columns.map((c,i)=>{
+    let cls = '';
+    if(sortCol === i) cls = sortDir === 1 ? 'sort-asc' : 'sort-desc';
+    return `<th data-index="${i}" class="${cls}">${c.replace(/\n/g,'<br>')}</th>`;
+  }).join('') + '</tr>';
 
-    async function load(){
-      status.textContent = 'Memuat data…';
-      try{
-        const res = await fetch(ENDPOINT);
-        if(!res.ok) throw new Error(res.statusText);
-        data = await res.json();
-        // ambil semua kolom dari baris pertama
-        columns = Object.keys(data[0] || {});
-        renderTable(data);
-        status.textContent = `${data.length} baris dimuat.`;
-      }catch(e){
-        status.textContent = 'Gagal memuat data: ' + e.message;
-      }
-    }
+  // Pagination slice
+  const start = (currentPage-1)*pageSize;
+  const end = start + pageSize;
+  const pageRows = rows.slice(start,end);
 
-    function filterData(){
-      const q = search.value.toLowerCase();
-      const filtered = data.filter(row => columns.some(c => (row[c]||'').toLowerCase().includes(q)));
-      renderTable(filtered);
-    }
+  tbody.innerHTML = pageRows.map(r=>'<tr>' + columns.map(c=>`<td>${r[c]||''}</td>`).join('') + '</tr>').join('');
 
-    function downloadCSV(){
-      const rows = [columns, ...data.map(r => columns.map(c => r[c]||''))];
-      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'Peralatan_dan_Mesin.csv';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
+  // Header click for sort
+  thead.querySelectorAll('th').forEach(th=>{
+    th.onclick = ()=>{
+      const idx = parseInt(th.dataset.index);
+      if(sortCol === idx){ sortDir *= -1; } 
+      else { sortCol = idx; sortDir = 1; }
+      sortData();
+    };
+  });
 
-    document.getElementById('reload').onclick = load;
-    document.getElementById('download').onclick = downloadCSV;
-    search.oninput = filterData;
+  renderPagination(rows.length);
+}
 
-    load();
-  </script>
+function sortData(){
+  if(sortCol===null){ renderTable(filteredData); return; }
+  const colName = columns[sortCol];
+  filteredData.sort((a,b)=>{
+    const va = (a[colName]||'').toString().toLowerCase();
+    const vb = (b[colName]||'').toString().toLowerCase();
+    if(va < vb) return -1*sortDir;
+    if(va > vb) return 1*sortDir;
+    return 0;
+  });
+  renderTable(filteredData);
+}
+
+function renderPagination(totalRows){
+  const totalPages = Math.ceil(totalRows/pageSize);
+  pagination.innerHTML = '';
+  for(let i=1;i<=totalPages;i++){
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    if(i===currentPage) btn.classList.add('active');
+    btn.onclick = ()=>{ currentPage=i; renderTable(filteredData); };
+    pagination.appendChild(btn);
+  }
+}
+
+async function load(){
+  status.textContent = 'Memuat data…';
+  try{
+    const res = await fetch(ENDPOINT);
+    if(!res.ok) throw new Error(res.statusText);
+    data = await res.json();
+    columns = Object.keys(data[0] || {});
+    filteredData = [...data];
+    currentPage = 1;
+    renderTable(filteredData);
+    status.textContent = `${data.length} baris dimuat.`;
+  }catch(e){
+    status.textContent = 'Gagal memuat data: ' + e.message;
+  }
+}
+
+function filterData(){
+  const q = search.value.toLowerCase();
+  filteredData = data.filter(row => columns.some(c => (row[c]||'').toLowerCase().includes(q)));
+  currentPage = 1;
+  sortData();
+}
+
+function downloadCSV(){
+  const rows = [columns, ...data.map(r => columns.map(c => r[c]||''))];
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Peralatan_dan_Mesin.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('reload').onclick = load;
+document.getElementById('download').onclick = downloadCSV;
+search.oninput = filterData;
+
+load();
+</script>
 </body>
 </html>
