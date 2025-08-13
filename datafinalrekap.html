@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Peralatan dan Mesin — Data dari Google Sheets</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff;
+      --accent:#6ea8fe; --border:#223063;
+    }
+    body{
+      margin:0;
+      font-family:ui-sans-serif,system-ui;
+      background:var(--bg);
+      color:var(--text);
+      display:flex;
+      height:100vh;
+      overflow:hidden;
+    }
+    nav{
+      width:220px;
+      background:#121935;
+      padding:1rem;
+      overflow:auto;
+      border-right:1px solid var(--border);
+    }
+    nav h2{
+      margin-top:0;
+      font-size:1.2rem;
+    }
+    nav ul{
+      list-style:none;
+      padding:0;
+      margin:0;
+    }
+    nav li{
+      padding:.5rem;
+      cursor:pointer;
+      border-radius:.3rem;
+      margin-bottom:.2rem;
+    }
+    nav li.active{
+      background:var(--accent);
+      color:#000;
+    }
+    main{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      padding:1rem;
+      overflow:auto;
+    }
+    header{
+      background:#0b1020cc;
+      padding:1rem;
+      border-bottom:1px solid var(--border);
+      position:sticky;
+      top:0;
+      z-index:1;
+    }
+    header h1{margin:0;font-size:1.5rem}
+    header div{display:flex;gap:.5rem;margin-top:.5rem}
+    input,button{
+      padding:.5rem;
+      border-radius:.5rem;
+      border:1px solid var(--border)
+    }
+    input{
+      flex:1;min-width:200px;background:#0f1730;color:var(--text)
+    }
+    button{background:var(--accent);color:#000;cursor:pointer}
+    table{width:100%;border-collapse:collapse;margin-top:1rem}
+    th,td{padding:.5rem;border-bottom:1px solid var(--border);vertical-align:top}
+    th{background:#0f1730;color:var(--muted);cursor:pointer;white-space:nowrap}
+    tbody tr:hover{background:#0f1730}
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>Kecamatan</h2>
+    <ul id="kecamatan-list">
+      <li data-kecamatan="" data-endpoint="https://opensheet.elk.sh/ID_SHEET_SEMUA/NamaSheet" class="active">Semua</li>
+      <li data-kecamatan="Banawa" data-endpoint="https://opensheet.elk.sh/ID_SHEET_BANAWA/NamaSheet">Kecamatan Banawa</li>
+      <li data-kecamatan="Banawa Tengah" data-endpoint="https://opensheet.elk.sh/ID_SHEET_BANAWA_TENGAH/NamaSheet">Kecamatan Banawa Tengah</li>
+      <li data-kecamatan="Balanipa" data-endpoint="https://opensheet.elk.sh/ID_SHEET_BALANIPA/NamaSheet">Kecamatan Balanipa</li>
+      <li data-kecamatan="Duampanua" data-endpoint="https://opensheet.elk.sh/ID_SHEET_DUAMPANUA/NamaSheet">Kecamatan Duampanua</li>
+      <li data-kecamatan="Marobo" data-endpoint="https://opensheet.elk.sh/ID_SHEET_MAROBO/NamaSheet">Kecamatan Marobo</li>
+      <li data-kecamatan="Labuan" data-endpoint="https://opensheet.elk.sh/ID_SHEET_LABUAN/NamaSheet">Kecamatan Labuan</li>
+      <li data-kecamatan="Tapalang" data-endpoint="https://opensheet.elk.sh/ID_SHEET_TAPALANG/NamaSheet">Kecamatan Tapalang</li>
+      <li data-kecamatan="Tapalang Barat" data-endpoint="https://opensheet.elk.sh/ID_SHEET_TAPALANG_BARAT/NamaSheet">Kecamatan Tapalang Barat</li>
+      <li data-kecamatan="Tinambung" data-endpoint="https://opensheet.elk.sh/ID_SHEET_TINAMBUNG/NamaSheet">Kecamatan Tinambung</li>
+      <li data-kecamatan="Tinambung Barat" data-endpoint="https://opensheet.elk.sh/ID_SHEET_TINAMBUNG_BARAT/NamaSheet">Kecamatan Tinambung Barat</li>
+      <li data-kecamatan="Mapilli" data-endpoint="https://opensheet.elk.sh/ID_SHEET_MAPILLI/NamaSheet">Kecamatan Mapilli</li>
+      <li data-kecamatan="Campalagian" data-endpoint="https://opensheet.elk.sh/ID_SHEET_CAMPALAGIAN/NamaSheet">Kecamatan Campalagian</li>
+      <li data-kecamatan="Luyo" data-endpoint="https://opensheet.elk.sh/ID_SHEET_LUYO/NamaSheet">Kecamatan Luyo</li>
+      <li data-kecamatan="Wonomulyo" data-endpoint="https://opensheet.elk.sh/ID_SHEET_WONOMULYO/NamaSheet">Kecamatan Wonomulyo</li>
+      <li data-kecamatan="Polewali" data-endpoint="https://opensheet.elk.sh/ID_SHEET_POLEWALI/NamaSheet">Kecamatan Polewali</li>
+      <li data-kecamatan="Anreapi" data-endpoint="https://opensheet.elk.sh/ID_SHEET_ANREAPI/NamaSheet">Kecamatan Anreapi</li>
+    </ul>
+  </nav>
+
+  <main>
+    <header>
+      <h1>Peralatan dan Mesin</h1>
+      <div>
+        <input id="search" type="search" placeholder="Cari…" />
+        <button id="download">Unduh CSV</button>
+        <button id="reload">Muat ulang</button>
+      </div>
+    </header>
+    <div style="overflow:auto">
+      <table>
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="status"></p>
+  </main>
+
+  <script>
+    const columns = [
+      "Urut","Pengguna Barang","Kode Barang","Nama Barang",
+      "Konfirmasi Keberadaan","Kondisi","Label BMD (selain Kendaraan)","Penggunaan",
+      "Nama Pengguna (Jika Penggunaan : Digunakan Pegawai)",
+      "Status Pegawai Pengguna (Jika Penggunaan : Digunakan Pegawai)",
+      "Keterangan Tambahan","NIBAR","Merek/tipe","Nomor Polisi","Nomor Rangka","Nomor BPKB",
+      "Nilai Perolehan","Cara Perolehan","Perolehan","Status Penggunaan","Kecamatan"
+    ];
+
+    const thead = document.querySelector('thead');
+    const tbody = document.querySelector('tbody');
+    const status = document.getElementById('status');
+    const search = document.getElementById('search');
+    const kecamatanList = document.getElementById('kecamatan-list');
+
+    let data = [];
+    let currentKecamatan = "";
+    let currentEndpoint = kecamatanList.querySelector('li.active').dataset.endpoint;
+
+    function renderTable(rows){
+      thead.innerHTML = '<tr>' + columns.map(c=>`<th>${c.replace(/\n/g,'<br>')}</th>`).join('') + '</tr>';
+      tbody.innerHTML = rows.map(r=>'<tr>' + columns.map(c=>`<td>${r[c]||''}</td>`).join('') + '</tr>').join('');
+    }
+
+    async function load(endpoint=currentEndpoint){
+      status.textContent = 'Memuat data…';
+      try{
+        const res = await fetch(endpoint);
+        if(!res.ok) throw new Error(res.statusText);
+        data = await res.json();
+        applyFilters();
+        status.textContent = `${data.length} baris dimuat. Terakhir diperbarui: ${new Date().toLocaleTimeString()}`;
+      }catch(e){
+        status.textContent = 'Gagal memuat data: ' + e.message;
+      }
+    }
+
+    function applyFilters(){
+      const q = search.value.toLowerCase();
+      const filtered = data.filter(row => {
+        const matchKec = currentKecamatan === "" || (row["Kecamatan"]||"") === currentKecamatan;
+        const matchSearch = columns.some(c => (row[c]||'').toLowerCase().includes(q));
+        return matchKec && matchSearch;
+      });
+      renderTable(filtered);
+    }
+
+    search.oninput = applyFilters;
+    document.getElementById('reload').onclick = () => load(currentEndpoint);
+    document.getElementById('download').onclick = () => {
+      const rows = [columns, ...data.map(r => columns.map(c => r[c]||''))];
+      const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+      const blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'Peralatan_dan_Mesin.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    kecamatanList.querySelectorAll('li').forEach(li => {
+      li.onclick = async () => {
+        currentKecamatan = li.dataset.kecamatan;
+        currentEndpoint = li.dataset.endpoint || currentEndpoint;
+        kecamatanList.querySelectorAll('li').forEach(l=>l.classList.remove('active'));
+        li.classList.add('active');
+        await load(currentEndpoint);
+      };
+    });
+
+    load();
+  </script>
+</body>
+</html>
