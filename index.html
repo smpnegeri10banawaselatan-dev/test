@@ -43,58 +43,70 @@
   <div class="flex-1 p-6" id="data-content">
     <h2 class="text-xl font-semibold mb-4">Rekap Data</h2>
     <div id="rekap-table" class="overflow-auto bg-white shadow-sm rounded-xl p-4">
-      <p class="text-gray-500">Pilih kecamatan di kiri untuk menampilkan data.</p>
+      <p class="text-gray-500">Memuat data…</p>
     </div>
   </div>
 
 <script>
-  const items = document.querySelectorAll('#kecamatan-list li');
-  const content = document.getElementById('rekap-table');
+const items = document.querySelectorAll('#kecamatan-list li');
+const content = document.getElementById('rekap-table');
 
-  items.forEach(item => {
-    item.addEventListener('click', () => {
-      // Hapus kelas active
-      items.forEach(i => i.classList.remove('active'));
-      // Tambahkan kelas active
-      item.classList.add('active');
+const allowedColumns = [
+  "Urut", "Pengguna Barang",
+  "Kode Barang", "Nama Barang", "Konfirmasi Keberadaan", "Kondisi",
+  "Label BMD (selain Kendaraan)", "Penggunaan", "Nama Pengguna (Jika Penggunaan : Digunakan Pegawai)",
+  "Status Pegawai Pengguna (Jika Penggunaan : Digunakan Pegawai)",
+  "Keterangan Tambahan", "NIBAR", "Merek/tipe", "Nomor Polisi", "Nomor Rangka",
+  "Nomor BPKB", "Nilai Perolehan", "Cara Perolehan", "Perolehan", "Status Penggunaan"
+];
 
-      // Ambil endpoint
-      const url = item.dataset.endpoint;
+function loadData(item) {
+  items.forEach(i => i.classList.remove('active'));
+  item.classList.add('active');
 
-      // Tampilkan loading
-      content.innerHTML = `<p class="text-gray-500">Memuat data ${item.dataset.kecamatan || 'Semua'}…</p>`;
+  const url = item.dataset.endpoint;
+  content.innerHTML = `<p class="text-gray-500">Memuat data ${item.dataset.kecamatan || 'Semua'}…</p>`;
 
-      // Fetch data dari OpenSheet
-      fetch(url)
-        .then(res => res.json())
-        .then(data => {
-          if (data.length === 0) {
-            content.innerHTML = `<p class="text-gray-500">Data kosong.</p>`;
-            return;
-          }
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.length === 0) {
+        content.innerHTML = `<p class="text-gray-500">Data kosong.</p>`;
+        return;
+      }
 
-          // Buat tabel
-          let table = `<table class="min-w-full border border-gray-200"><thead class="bg-gray-100"><tr>`;
-          // Header
-          Object.keys(data[0]).forEach(key => {
-            table += `<th class="border px-3 py-2 text-left text-sm font-medium">${key}</th>`;
-          });
-          table += `</tr></thead><tbody>`;
-          data.forEach(row => {
-            table += `<tr class="hover:bg-gray-50">`;
-            Object.values(row).forEach(val => {
-              table += `<td class="border px-3 py-1 text-sm">${val}</td>`;
-            });
-            table += `</tr>`;
-          });
-          table += `</tbody></table>`;
-          content.innerHTML = table;
-        })
-        .catch(err => {
-          content.innerHTML = `<p class="text-red-500">Gagal memuat data: ${err}</p>`;
+      let table = `<table class="min-w-full border border-gray-200"><thead class="bg-gray-100"><tr>`;
+      allowedColumns.forEach(col => {
+        table += `<th class="border px-3 py-2 text-left text-sm font-medium">${col}</th>`;
+      });
+      table += `</tr></thead><tbody>`;
+
+      data.forEach(row => {
+        table += `<tr class="hover:bg-gray-50">`;
+        allowedColumns.forEach(col => {
+          table += `<td class="border px-3 py-1 text-sm">${row[col] || ''}</td>`;
         });
+        table += `</tr>`;
+      });
+
+      table += `</tbody></table>`;
+      content.innerHTML = table;
+    })
+    .catch(err => {
+      content.innerHTML = `<p class="text-red-500">Gagal memuat data: ${err}</p>`;
     });
-  });
+}
+
+// Load data semua saat halaman dibuka
+window.addEventListener('DOMContentLoaded', () => {
+  const firstItem = document.querySelector('#kecamatan-list li.active');
+  if (firstItem) loadData(firstItem);
+});
+
+// Event click kecamatan
+items.forEach(item => {
+  item.addEventListener('click', () => loadData(item));
+});
 </script>
 
 </body>
