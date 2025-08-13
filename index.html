@@ -41,19 +41,13 @@
   </main>
   <script>
     const ENDPOINT = "https://opensheet.elk.sh/https://docs.google.com/spreadsheets/d/152oNQyrJEeg-xW3okB2LKbGIUapxDakDMCbDjqpDl3U/Peralatan%20dan%20Mesin";
-    const columns = [
-      "Urut","Pengguna Barang","Kode Barang","Nama Barang",
-      "Konfirmasi Keberadaan","Kondisi","Label BMD\n(selain Kendaraan)","Penggunaan",
-      "Nama Pengguna\n(Jika Penggunaan : Digunakan Pegawai)",
-      "Status Pegawai Pengguna\n(Jika Penggunaan : Digunakan Pegawai)",
-      "Keterangan Tambahan","NIBAR","Merek/tipe","Nomor Polisi","Nomor Rangka","Nomor BPKB",
-      "Nilai Perolehan","Cara Perolehan","Perolehan","Status Penggunaan"
-    ];
+    let columns = [];
+    let data = [];
+
     const thead = document.querySelector('thead');
     const tbody = document.querySelector('tbody');
     const status = document.getElementById('status');
     const search = document.getElementById('search');
-    let data = [];
 
     function renderTable(rows){
       thead.innerHTML = '<tr>' + columns.map(c=>`<th>${c.replace(/\n/g,'<br>')}</th>`).join('') + '</tr>';
@@ -66,6 +60,8 @@
         const res = await fetch(ENDPOINT);
         if(!res.ok) throw new Error(res.statusText);
         data = await res.json();
+        // ambil semua kolom dari baris pertama
+        columns = Object.keys(data[0] || {});
         renderTable(data);
         status.textContent = `${data.length} baris dimuat.`;
       }catch(e){
@@ -81,7 +77,7 @@
 
     function downloadCSV(){
       const rows = [columns, ...data.map(r => columns.map(c => r[c]||''))];
-      const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
