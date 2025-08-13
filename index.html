@@ -1,182 +1,103 @@
 <!doctype html>
 <html lang="id">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Peralatan dan Mesin — Data Google Sheets (Real-time)</title>
-<style>
-  :root{
-    --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff; --accent:#6ea8fe; --border:#223063; --highlight:#ffe680;
-  }
-  body{margin:0;font-family:ui-sans-serif,system-ui; background:var(--bg); color:var(--text);}
-  header{position:sticky;top:0;background:#0b1020cc;padding:1rem;border-bottom:1px solid var(--border);z-index:10;}
-  h1{margin:0;font-size:1.5rem;}
-  input,button{padding:.5rem;border-radius:.5rem;border:1px solid var(--border);}
-  input{flex:1;min-width:200px;background:#0f1730;color:var(--text);}
-  button{background:var(--accent);color:#000;cursor:pointer;}
-  main{padding:1rem;}
-  .table-container{overflow:auto; max-width:100%; border:1px solid var(--border); border-radius:.5rem;}
-  table{width:100%;border-collapse:collapse; min-width:1200px;}
-  th,td{padding:.5rem;border-bottom:1px solid var(--border);vertical-align:top; white-space:nowrap;}
-  th{position:sticky; top:0; background:#0f1730;color:var(--muted); cursor:pointer; user-select:none; z-index:5;}
-  th.sort-asc::after { content:" ▲"; }
-  th.sort-desc::after { content:" ▼"; }
-  tbody tr:hover{background:#0f1730;}
-  .pagination{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;}
-  .pagination button{padding:.3rem .6rem;background:#0f1730;color:var(--text);border:1px solid var(--border);cursor:pointer;}
-  .pagination button.active{background:var(--accent);color:#000;}
-  #status.error{color:#ff6b6b;}
-  mark{background:var(--highlight); color:#000;}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Peralatan dan Mesin — Data dari Google Sheets</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff; --accent:#6ea8fe; --border:#223063;
+    }
+    body{margin:0;font-family:ui-sans-serif,system-ui; background:var(--bg); color:var(--text)}
+    header{position:sticky;top:0;background:#0b1020cc;padding:1rem;border-bottom:1px solid var(--border)}
+    h1{margin:0;font-size:1.5rem}
+    input,button{padding:.5rem;border-radius:.5rem;border:1px solid var(--border)}
+    input{flex:1;min-width:200px;background:#0f1730;color:var(--text)}
+    button{background:var(--accent);color:#000;cursor:pointer}
+    main{padding:1rem}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:.5rem;border-bottom:1px solid var(--border);vertical-align:top}
+    th{background:#0f1730;color:var(--muted);cursor:pointer;white-space:nowrap}
+    tbody tr:hover{background:#0f1730}
+  </style>
 </head>
 <body>
-<header>
-  <h1>Peralatan dan Mesin (Real-time)</h1>
-  <div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap;">
-    <input id="search" type="search" placeholder="Cari…" />
-    <button id="download">Unduh CSV</button>
-    <button id="reload">Muat ulang</button>
-  </div>
-</header>
-<main>
-  <div class="table-container">
-    <table>
-      <thead></thead>
-      <tbody></tbody>
-    </table>
-  </div>
-  <div class="pagination" id="pagination"></div>
-  <p id="status"></p>
-</main>
-<script>
-const ENDPOINT = "https://opensheet.elk.sh/https://docs.google.com/spreadsheets/d/152oNQyrJEeg-xW3okB2LKbGIUapxDakDMCbDjqpDl3U/Peralatan%20dan%20Mesin";
-let columns = [];
-let data = [];
-let filteredData = [];
-let sortCol = null;
-let sortDir = 1;
-let currentPage = 1;
-const pageSize = 50;
-const REFRESH_INTERVAL = 15000; // refresh setiap 15 detik
+  <header>
+    <h1>Peralatan dan Mesin</h1>
+    <div style="display:flex;gap:.5rem;margin-top:.5rem">
+      <input id="search" type="search" placeholder="Cari…" />
+      <button id="download">Unduh CSV</button>
+      <button id="reload">Muat ulang</button>
+    </div>
+  </header>
+  <main>
+    <div style="overflow:auto">
+      <table>
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="status"></p>
+  </main>
+  <script>
+    // Ganti SPREADSHEET_ID dengan ID sheet Anda, dan sheet name URL encoded
+    const ENDPOINT = "https://opensheet.elk.sh/152oNQyrJEeg-xW3okB2LKbGIUapxDakDMCbDjqpDl3U/Peralatan%20dan%20Mesin";
 
-const thead = document.querySelector('thead');
-const tbody = document.querySelector('tbody');
-const status = document.getElementById('status');
-const search = document.getElementById('search');
-const pagination = document.getElementById('pagination');
+    const columns = [
+      "Urut","Pengguna Barang","Kode Barang","Nama Barang",
+      "Konfirmasi Keberadaan","Kondisi","Label BMD (selain Kendaraan)","Penggunaan",
+      "Nama Pengguna (Jika Penggunaan : Digunakan Pegawai)",
+      "Status Pegawai Pengguna (Jika Penggunaan : Digunakan Pegawai)",
+      "Keterangan Tambahan","NIBAR","Merek/tipe","Nomor Polisi","Nomor Rangka","Nomor BPKB",
+      "Nilai Perolehan","Cara Perolehan","Perolehan","Status Penggunaan"
+    ];
 
-function escapeHTML(str){ return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function highlightText(text, query){
-  if(!query) return escapeHTML(text);
-  const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
-  return escapeHTML(text).replace(re,m=>`<mark>${m}</mark>`);
-}
+    const thead = document.querySelector('thead');
+    const tbody = document.querySelector('tbody');
+    const status = document.getElementById('status');
+    const search = document.getElementById('search');
+    let data = [];
 
-function renderTable(rows){
-  const q = search.value.toLowerCase();
-  thead.innerHTML = '<tr>' + columns.map((c,i)=>{
-    let cls = '';
-    if(sortCol === i) cls = sortDir === 1 ? 'sort-asc' : 'sort-desc';
-    return `<th data-index="${i}" class="${cls}">${c.replace(/\n/g,'<br>')}</th>`;
-  }).join('') + '</tr>';
-
-  const start = (currentPage-1)*pageSize;
-  const end = start + pageSize;
-  const pageRows = rows.slice(start,end);
-
-  tbody.innerHTML = pageRows.map(r=>'<tr>' + columns.map(c=>`<td>${highlightText((r[c]||''),q)}</td>`).join('') + '</tr>').join('');
-
-  thead.querySelectorAll('th').forEach(th=>{
-    th.onclick = ()=>{
-      const idx = parseInt(th.dataset.index);
-      if(sortCol === idx){ sortDir *= -1; } 
-      else { sortCol = idx; sortDir = 1; sortCol = idx; }
-      sortData();
-    };
-  });
-
-  renderPagination(rows.length);
-}
-
-function sortData(){
-  if(sortCol===null){ renderTable(filteredData); return; }
-  const colName = columns[sortCol];
-  filteredData.sort((a,b)=>{
-    const va = (a[colName]||'').toString().toLowerCase();
-    const vb = (b[colName]||'').toString().toLowerCase();
-    if(va < vb) return -1*sortDir;
-    if(va > vb) return 1*sortDir;
-    return 0;
-  });
-  renderTable(filteredData);
-}
-
-function renderPagination(totalRows){
-  const totalPages = Math.ceil(totalRows/pageSize);
-  pagination.innerHTML = '';
-  for(let i=1;i<=totalPages;i++){
-    const btn = document.createElement('button');
-    btn.textContent = i;
-    if(i===currentPage) btn.classList.add('active');
-    btn.onclick = ()=>{ currentPage=i; renderTable(filteredData); };
-    pagination.appendChild(btn);
-  }
-}
-
-async function load(){
-  status.classList.remove('error');
-  status.textContent = 'Memuat data…';
-  try{
-    const res = await fetch(ENDPOINT);
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const newData = await res.json();
-    if(!newData || !newData.length) throw new Error("Data kosong atau sheet mungkin privat");
-
-    const isChanged = JSON.stringify(newData) !== JSON.stringify(data);
-    data = newData;
-    if(columns.length === 0) columns = Object.keys(data[0] || {});
-    if(isChanged || filteredData.length===0){
-      filteredData = [...data];
-      currentPage = 1;
-      sortData();
-      status.textContent = `${data.length} baris dimuat.`;
-    } else {
-      status.textContent = `${data.length} baris (tidak ada perubahan).`;
+    function renderTable(rows){
+      thead.innerHTML = '<tr>' + columns.map(c=>`<th>${c.replace(/\n/g,'<br>')}</th>`).join('') + '</tr>';
+      tbody.innerHTML = rows.map(r=>'<tr>' + columns.map(c=>`<td>${r[c]||''}</td>`).join('') + '</tr>').join('');
     }
 
-  }catch(e){
-    status.classList.add('error');
-    status.textContent = 'Gagal memuat data: ' + e.message + '. Pastikan sheet bisa diakses publik.';
-  }
-}
+    async function load(){
+      status.textContent = 'Memuat data…';
+      try{
+        const res = await fetch(ENDPOINT);
+        if(!res.ok) throw new Error(res.statusText);
+        data = await res.json();
+        renderTable(data);
+        status.textContent = `${data.length} baris dimuat.`;
+      }catch(e){
+        status.textContent = 'Gagal memuat data: ' + e.message;
+      }
+    }
 
-function filterData(){
-  const q = search.value.toLowerCase();
-  filteredData = data.filter(row => columns.some(c => (row[c]||'').toString().toLowerCase().includes(q)));
-  currentPage = 1;
-  sortData();
-}
+    function filterData(){
+      const q = search.value.toLowerCase();
+      const filtered = data.filter(row => columns.some(c => (row[c]||'').toLowerCase().includes(q)));
+      renderTable(filtered);
+    }
 
-function downloadCSV(){
-  const rows = [columns, ...data.map(r => columns.map(c => r[c]||''))];
-  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'Peralatan_dan_Mesin.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+    function downloadCSV(){
+      const rows = [columns, ...data.map(r => columns.map(c => r[c]||''))];
+      const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+      const blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'Peralatan_dan_Mesin.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
 
-document.getElementById('reload').onclick = load;
-document.getElementById('download').onclick = downloadCSV;
-search.oninput = filterData;
+    document.getElementById('reload').onclick = load;
+    document.getElementById('download').onclick = downloadCSV;
+    search.oninput = filterData;
 
-// muat pertama
-load();
-
-// refresh otomatis setiap interval
-setInterval(load, REFRESH_INTERVAL);
-</script>
+    load();
+  </script>
 </body>
 </html>
