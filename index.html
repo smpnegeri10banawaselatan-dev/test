@@ -11,6 +11,7 @@
   #kecamatan-list li { cursor: pointer; padding: 0.5rem 1rem; border-radius: 0.5rem; transition: all 0.2s; }
   #kecamatan-list li.active, #kecamatan-list li:hover { background-color: #e0f2fe; color: #0369a1; }
   #data-content { overflow-x: auto; }
+  .btn { @apply px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm inline-flex items-center gap-1; }
 </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex">
@@ -41,7 +42,10 @@
 
   <!-- Konten kanan -->
   <div class="flex-1 p-6" id="data-content">
-    <h2 class="text-xl font-semibold mb-4">Rekap Data</h2>
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold">Rekap Data</h2>
+      <button id="download-btn" class="btn"><i class="bi bi-download"></i> Download Excel</button>
+    </div>
     <div id="rekap-table" class="overflow-auto bg-white shadow-sm rounded-xl p-4">
       <p class="text-gray-500">Memuat data…</p>
     </div>
@@ -50,6 +54,7 @@
 <script>
 const items = document.querySelectorAll('#kecamatan-list li');
 const content = document.getElementById('rekap-table');
+const downloadBtn = document.getElementById('download-btn');
 
 const allowedColumns = [
   "Urut", "Pengguna Barang",
@@ -60,7 +65,28 @@ const allowedColumns = [
   "Nomor BPKB", "Nilai Perolehan", "Cara Perolehan", "Perolehan", "Status Penggunaan"
 ];
 
+let currentItem = null;
+let refreshInterval = null;
+
+function arrayToCSV(data) {
+  const header = allowedColumns.join(",");
+  const rows = data.map(row => allowedColumns.map(col => `"${(row[col]||'').replace(/"/g,'""')}"`).join(","));
+  return [header, ...rows].join("\n");
+}
+
+function downloadCSV(data) {
+  const csv = arrayToCSV(data);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${currentItem.dataset.kecamatan || 'Semua'}-data.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function loadData(item) {
+  currentItem = item;
   items.forEach(i => i.classList.remove('active'));
   item.classList.add('active');
 
@@ -70,42 +96,49 @@ function loadData(item) {
   fetch(url)
     .then(res => res.json())
     .then(data => {
-      if (data.length === 0) {
+      if (!data || data.length === 0) {
         content.innerHTML = `<p class="text-gray-500">Data kosong.</p>`;
         return;
       }
 
-      let table = `<table class="min-w-full border border-gray-200"><thead class="bg-gray-100"><tr>`;
-      allowedColumns.forEach(col => {
-        table += `<th class="border px-3 py-2 text-left text-sm font-medium">${col}</th>`;
-      });
-      table += `</tr></thead><tbody>`;
+      // Filter kolom
+      const table = `<table class="min-w-full border border-gray-200">
+        <thead class="bg-gray-100"><tr>${allowedColumns.map(col => `<th class="border px-3 py-2 text-left text-sm font-medium">${col}</th>`).join('')}</tr></thead>
+        <tbody>${data.map(row => `<tr class="hover:bg-gray-50">${allowedColumns.map(col => `<td class="border px-3 py-1 text-sm">${row[col]||''}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>`;
 
-      data.forEach(row => {
-        table += `<tr class="hover:bg-gray-50">`;
-        allowedColumns.forEach(col => {
-          table += `<td class="border px-3 py-1 text-sm">${row[col] || ''}</td>`;
-        });
-        table += `</tr>`;
-      });
-
-      table += `</tbody></table>`;
       content.innerHTML = table;
+      content.dataset.latestData = JSON.stringify(data);
     })
     .catch(err => {
       content.innerHTML = `<p class="text-red-500">Gagal memuat data: ${err}</p>`;
     });
 }
 
-// Load data semua saat halaman dibuka
+// Load data pertama kali
 window.addEventListener('DOMContentLoaded', () => {
   const firstItem = document.querySelector('#kecamatan-list li.active');
   if (firstItem) loadData(firstItem);
+
+  // Refresh otomatis setiap 20 detik
+  refreshInterval = setInterval(() => {
+    if (currentItem) loadData(currentItem);
+  }, 20000);
 });
 
-// Event click kecamatan
+// Klik kecamatan
 items.forEach(item => {
   item.addEventListener('click', () => loadData(item));
+});
+
+// Tombol download
+downloadBtn.addEventListener('click', () => {
+  if (content.dataset.latestData) {
+    const data = JSON.parse(content.dataset.latestData);
+    downloadCSV(data);
+  } else {
+    alert("Data belum siap untuk di-download.");
+  }
 });
 </script>
 
