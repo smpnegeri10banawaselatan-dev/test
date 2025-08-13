@@ -8,58 +8,14 @@
     :root{
       --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff; --accent:#6ea8fe; --border:#223063;
     }
-    body{
-      margin:0;
-      font-family:ui-sans-serif,system-ui;
-      background:var(--bg);
-      color:var(--text);
-      display:flex;
-      height:100vh;
-      overflow:hidden;
-    }
-    nav{
-      width:220px;
-      background:var(--card);
-      border-right:1px solid var(--border);
-      display:flex;
-      flex-direction:column;
-    }
-    nav h2{
-      margin:0;
-      padding:1rem;
-      font-size:1.2rem;
-      border-bottom:1px solid var(--border);
-    }
-    nav ul{
-      list-style:none;
-      margin:0;
-      padding:0;
-      flex:1;
-      overflow:auto;
-    }
-    nav li{
-      padding:.8rem 1rem;
-      cursor:pointer;
-      border-bottom:1px solid var(--border);
-    }
-    nav li:hover, nav li.active{
-      background:var(--accent);
-      color:#000;
-    }
-    main{
-      flex:1;
-      display:flex;
-      flex-direction:column;
-      overflow:auto;
-    }
-    header{
-      position:sticky;
-      top:0;
-      background:#0b1020cc;
-      padding:1rem;
-      border-bottom:1px solid var(--border);
-      z-index:1;
-    }
+    body{margin:0;font-family:ui-sans-serif,system-ui;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden;}
+    nav{width:220px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+    nav h2{margin:0;padding:1rem;font-size:1.2rem;border-bottom:1px solid var(--border);}
+    nav ul{list-style:none;margin:0;padding:0;flex:1;overflow:auto;}
+    nav li{padding:.8rem 1rem;cursor:pointer;border-bottom:1px solid var(--border);}
+    nav li:hover, nav li.active{background:var(--accent);color:#000;}
+    main{flex:1;display:flex;flex-direction:column;overflow:auto;}
+    header{position:sticky;top:0;background:#0b1020cc;padding:1rem;border-bottom:1px solid var(--border);z-index:1;}
     h1{margin:0;font-size:1.5rem}
     input,button{padding:.5rem;border-radius:.5rem;border:1px solid var(--border)}
     input{flex:1;min-width:200px;background:#0f1730;color:var(--text)}
@@ -142,8 +98,15 @@
         const res = await fetch(ENDPOINT);
         if(!res.ok) throw new Error(res.statusText);
         data = await res.json();
-        renderTable(data);
-        status.textContent = `${data.length} baris dimuat. Terakhir diperbarui: ${new Date().toLocaleTimeString()}`;
+
+        const kecamatanAktif = document.querySelector('#kecamatan-list li.active').dataset.kecamatan;
+
+        const filteredData = kecamatanAktif
+          ? data.filter(r => (r['Pengguna Barang']||'').toLowerCase().includes(kecamatanAktif.toLowerCase()))
+          : data;
+
+        renderTable(filteredData);
+        status.textContent = `${filteredData.length} baris dimuat. Terakhir diperbarui: ${new Date().toLocaleTimeString()}`;
       }catch(e){
         status.textContent = 'Gagal memuat data: ' + e.message;
       }
@@ -151,7 +114,10 @@
 
     function filterData(){
       const q = search.value.toLowerCase();
-      const filtered = data.filter(row => columns.some(c => (row[c]||'').toString().toLowerCase().includes(q)));
+      const kecamatanAktif = document.querySelector('#kecamatan-list li.active').dataset.kecamatan;
+      const filtered = data
+        .filter(r => !kecamatanAktif || (r['Pengguna Barang']||'').toLowerCase().includes(kecamatanAktif.toLowerCase()))
+        .filter(r => columns.some(c => (r[c]||'').toString().toLowerCase().includes(q)));
       renderTable(filtered);
     }
 
@@ -160,9 +126,13 @@
     document.getElementById('reload').addEventListener('click',()=>load());
 
     document.getElementById('download').addEventListener('click',()=>{
+      const kecamatanAktif = document.querySelector('#kecamatan-list li.active').dataset.kecamatan;
+      const filtered = kecamatanAktif
+        ? data.filter(r => (r['Pengguna Barang']||'').toLowerCase().includes(kecamatanAktif.toLowerCase()))
+        : data;
       const csv = [
         columns.join(','),
-        ...data.map(r => columns.map(c=>`"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(','))
+        ...filtered.map(r => columns.map(c=>`"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(','))
       ].join('\n');
       const blob = new Blob([csv], {type:'text/csv'});
       const url = URL.createObjectURL(blob);
@@ -178,6 +148,7 @@
         document.querySelectorAll('#kecamatan-list li').forEach(li=>li.classList.remove('active'));
         e.target.classList.add('active');
         ENDPOINT = e.target.dataset.endpoint;
+        search.value = ''; // reset search
         load();
       }
     });
