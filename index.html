@@ -24,6 +24,7 @@
   .pagination{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap}
   .pagination button{padding:.3rem .6rem;background:#0f1730;color:var(--text);border:1px solid var(--border);cursor:pointer}
   .pagination button.active{background:var(--accent);color:#000}
+  #status.error{color:#ff6b6b;}
 </style>
 </head>
 <body>
@@ -62,21 +63,18 @@ const search = document.getElementById('search');
 const pagination = document.getElementById('pagination');
 
 function renderTable(rows){
-  // Render header
   thead.innerHTML = '<tr>' + columns.map((c,i)=>{
     let cls = '';
     if(sortCol === i) cls = sortDir === 1 ? 'sort-asc' : 'sort-desc';
     return `<th data-index="${i}" class="${cls}">${c.replace(/\n/g,'<br>')}</th>`;
   }).join('') + '</tr>';
 
-  // Pagination slice
   const start = (currentPage-1)*pageSize;
   const end = start + pageSize;
   const pageRows = rows.slice(start,end);
 
   tbody.innerHTML = pageRows.map(r=>'<tr>' + columns.map(c=>`<td>${r[c]||''}</td>`).join('') + '</tr>').join('');
 
-  // Header click for sort
   thead.querySelectorAll('th').forEach(th=>{
     th.onclick = ()=>{
       const idx = parseInt(th.dataset.index);
@@ -115,24 +113,27 @@ function renderPagination(totalRows){
 }
 
 async function load(){
+  status.classList.remove('error');
   status.textContent = 'Memuat data…';
   try{
     const res = await fetch(ENDPOINT);
-    if(!res.ok) throw new Error(res.statusText);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
+    if(!data || !data.length) throw new Error("Data kosong atau sheet mungkin privat");
     columns = Object.keys(data[0] || {});
     filteredData = [...data];
     currentPage = 1;
     renderTable(filteredData);
     status.textContent = `${data.length} baris dimuat.`;
   }catch(e){
-    status.textContent = 'Gagal memuat data: ' + e.message;
+    status.classList.add('error');
+    status.textContent = 'Gagal memuat data: ' + e.message + '. Pastikan sheet bisa diakses publik.';
   }
 }
 
 function filterData(){
   const q = search.value.toLowerCase();
-  filteredData = data.filter(row => columns.some(c => (row[c]||'').toLowerCase().includes(q)));
+  filteredData = data.filter(row => columns.some(c => (row[c]||'').toString().toLowerCase().includes(q)));
   currentPage = 1;
   sortData();
 }
