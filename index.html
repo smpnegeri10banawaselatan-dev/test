@@ -3,41 +3,43 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Peralatan dan Mesin — Data dari Google Sheets</title>
+<title>Peralatan dan Mesin — Data Google Sheets (Real-time)</title>
 <style>
   :root{
-    --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff; --accent:#6ea8fe; --border:#223063;
+    --bg:#0b1020; --card:#121935; --muted:#8ea0ff; --text:#e7ebff; --accent:#6ea8fe; --border:#223063; --highlight:#ffe680;
   }
-  body{margin:0;font-family:ui-sans-serif,system-ui; background:var(--bg); color:var(--text)}
-  header{position:sticky;top:0;background:#0b1020cc;padding:1rem;border-bottom:1px solid var(--border);z-index:10}
-  h1{margin:0;font-size:1.5rem}
-  input,button{padding:.5rem;border-radius:.5rem;border:1px solid var(--border)}
-  input{flex:1;min-width:200px;background:#0f1730;color:var(--text)}
-  button{background:var(--accent);color:#000;cursor:pointer}
-  main{padding:1rem}
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:.5rem;border-bottom:1px solid var(--border);vertical-align:top}
-  th{background:#0f1730;color:var(--muted);cursor:pointer;white-space:nowrap;user-select:none}
-  tbody tr:hover{background:#0f1730}
+  body{margin:0;font-family:ui-sans-serif,system-ui; background:var(--bg); color:var(--text);}
+  header{position:sticky;top:0;background:#0b1020cc;padding:1rem;border-bottom:1px solid var(--border);z-index:10;}
+  h1{margin:0;font-size:1.5rem;}
+  input,button{padding:.5rem;border-radius:.5rem;border:1px solid var(--border);}
+  input{flex:1;min-width:200px;background:#0f1730;color:var(--text);}
+  button{background:var(--accent);color:#000;cursor:pointer;}
+  main{padding:1rem;}
+  .table-container{overflow:auto; max-width:100%; border:1px solid var(--border); border-radius:.5rem;}
+  table{width:100%;border-collapse:collapse; min-width:1200px;}
+  th,td{padding:.5rem;border-bottom:1px solid var(--border);vertical-align:top; white-space:nowrap;}
+  th{position:sticky; top:0; background:#0f1730;color:var(--muted); cursor:pointer; user-select:none; z-index:5;}
   th.sort-asc::after { content:" ▲"; }
   th.sort-desc::after { content:" ▼"; }
-  .pagination{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap}
-  .pagination button{padding:.3rem .6rem;background:#0f1730;color:var(--text);border:1px solid var(--border);cursor:pointer}
-  .pagination button.active{background:var(--accent);color:#000}
+  tbody tr:hover{background:#0f1730;}
+  .pagination{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;}
+  .pagination button{padding:.3rem .6rem;background:#0f1730;color:var(--text);border:1px solid var(--border);cursor:pointer;}
+  .pagination button.active{background:var(--accent);color:#000;}
   #status.error{color:#ff6b6b;}
+  mark{background:var(--highlight); color:#000;}
 </style>
 </head>
 <body>
 <header>
-  <h1>Peralatan dan Mesin</h1>
-  <div style="display:flex;gap:.5rem;margin-top:.5rem">
+  <h1>Peralatan dan Mesin (Real-time)</h1>
+  <div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap;">
     <input id="search" type="search" placeholder="Cari…" />
     <button id="download">Unduh CSV</button>
     <button id="reload">Muat ulang</button>
   </div>
 </header>
 <main>
-  <div style="overflow:auto">
+  <div class="table-container">
     <table>
       <thead></thead>
       <tbody></tbody>
@@ -55,6 +57,7 @@ let sortCol = null;
 let sortDir = 1;
 let currentPage = 1;
 const pageSize = 50;
+const REFRESH_INTERVAL = 15000; // refresh setiap 15 detik
 
 const thead = document.querySelector('thead');
 const tbody = document.querySelector('tbody');
@@ -62,7 +65,15 @@ const status = document.getElementById('status');
 const search = document.getElementById('search');
 const pagination = document.getElementById('pagination');
 
+function escapeHTML(str){ return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function highlightText(text, query){
+  if(!query) return escapeHTML(text);
+  const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+  return escapeHTML(text).replace(re,m=>`<mark>${m}</mark>`);
+}
+
 function renderTable(rows){
+  const q = search.value.toLowerCase();
   thead.innerHTML = '<tr>' + columns.map((c,i)=>{
     let cls = '';
     if(sortCol === i) cls = sortDir === 1 ? 'sort-asc' : 'sort-desc';
@@ -73,13 +84,13 @@ function renderTable(rows){
   const end = start + pageSize;
   const pageRows = rows.slice(start,end);
 
-  tbody.innerHTML = pageRows.map(r=>'<tr>' + columns.map(c=>`<td>${r[c]||''}</td>`).join('') + '</tr>').join('');
+  tbody.innerHTML = pageRows.map(r=>'<tr>' + columns.map(c=>`<td>${highlightText((r[c]||''),q)}</td>`).join('') + '</tr>').join('');
 
   thead.querySelectorAll('th').forEach(th=>{
     th.onclick = ()=>{
       const idx = parseInt(th.dataset.index);
       if(sortCol === idx){ sortDir *= -1; } 
-      else { sortCol = idx; sortDir = 1; }
+      else { sortCol = idx; sortDir = 1; sortCol = idx; }
       sortData();
     };
   });
@@ -118,13 +129,21 @@ async function load(){
   try{
     const res = await fetch(ENDPOINT);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    data = await res.json();
-    if(!data || !data.length) throw new Error("Data kosong atau sheet mungkin privat");
-    columns = Object.keys(data[0] || {});
-    filteredData = [...data];
-    currentPage = 1;
-    renderTable(filteredData);
-    status.textContent = `${data.length} baris dimuat.`;
+    const newData = await res.json();
+    if(!newData || !newData.length) throw new Error("Data kosong atau sheet mungkin privat");
+
+    const isChanged = JSON.stringify(newData) !== JSON.stringify(data);
+    data = newData;
+    if(columns.length === 0) columns = Object.keys(data[0] || {});
+    if(isChanged || filteredData.length===0){
+      filteredData = [...data];
+      currentPage = 1;
+      sortData();
+      status.textContent = `${data.length} baris dimuat.`;
+    } else {
+      status.textContent = `${data.length} baris (tidak ada perubahan).`;
+    }
+
   }catch(e){
     status.classList.add('error');
     status.textContent = 'Gagal memuat data: ' + e.message + '. Pastikan sheet bisa diakses publik.';
@@ -153,7 +172,11 @@ document.getElementById('reload').onclick = load;
 document.getElementById('download').onclick = downloadCSV;
 search.oninput = filterData;
 
+// muat pertama
 load();
+
+// refresh otomatis setiap interval
+setInterval(load, REFRESH_INTERVAL);
 </script>
 </body>
 </html>
